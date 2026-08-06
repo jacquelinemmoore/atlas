@@ -242,14 +242,19 @@ class="muted">
 Abstract
 </label>
 
+<p
+id="editor-abstract-display"
+class="inline-editable-text"
+tabindex="0">
+</p>
 
 <textarea
 id="editor-abstract"
+class="inline-editable-field"
 rows="2"
-placeholder="A brief description of this site.">
+placeholder="A brief description of this site."
+hidden>
 </textarea>
-
-
 
 
 
@@ -258,11 +263,18 @@ placeholder="A brief description of this site.">
 Selected Stops
 </label>
 
+<ul
+id="editor-stops-display"
+class="inline-editable-list"
+tabindex="0">
+</ul>
 
 <textarea
 id="editor-stops"
+class="inline-editable-field"
 rows="5"
-placeholder="Example:&#10; Tribuna Room&#10;Temple of Serapus&#10;Portrait of Lady Jane Grey">
+placeholder="Example:&#10; Tribuna Room&#10;Temple of Serapus&#10;Portrait of Lady Jane Grey"
+hidden>
 </textarea>
 
 
@@ -308,14 +320,15 @@ Already visited
 </fieldset>
 
 
-<input
-type="date"
-id="editor-visited-date">
-
-
+<div id="visited-date-row" class="visit-date-row">
+  <label class="field-label" for="editor-visited-date">Date visited</label>
+  <input
+  type="date"
+  id="editor-visited-date">
 </div>
 
 
+<div id="visit-history-section">
 
 <h3 class="section-heading">Visit history</h3>
     <ul id="detail-visits" class="visit-list"></ul>
@@ -323,6 +336,8 @@ id="editor-visited-date">
 <div class="log-visit-row">
   <input type="date" id="log-visit-date" />
   <button id="log-visit-btn" class="primary-btn">Log Visit</button>
+</div>
+
 </div>
 
 

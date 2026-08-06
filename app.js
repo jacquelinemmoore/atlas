@@ -74,33 +74,34 @@ function markerSize(){
 
 
 
-function pinHtml(status,size){
+function pinHtml(status,size,count){
 
-  if(status === "visited"){
-
-    return `
-      <div class="atlas-pin-seal"
-           style="width:${size}px;height:${size}px">
-
+  const inner =
+    status === "visited"
+    ? `
+      <div class="atlas-pin-seal" style="width:100%;height:100%">
         <img src="assets/wax-seal.png" alt="">
-
-        <svg class="seal-emblem"
-             viewBox="0 0 40 40">
+        <svg class="seal-emblem" viewBox="0 0 40 40">
           <use href="#icon-compass"></use>
         </svg>
-
       </div>
+    `
+    : `
+      <svg width="100%" height="100%" viewBox="0 0 40 40">
+        <use href="#icon-compass"></use>
+      </svg>
     `;
 
-  }
-
+  const badge =
+    count > 1
+    ? `<span class="pin-badge">${count > 99 ? "99+" : count}</span>`
+    : "";
 
   return `
-    <svg width="${size}"
-         height="${size}"
-         viewBox="0 0 40 40">
-      <use href="#icon-compass"></use>
-    </svg>
+    <div class="atlas-pin-wrap" style="width:${size}px;height:${size}px">
+      ${inner}
+      ${badge}
+    </div>
   `;
 
 }
@@ -109,7 +110,7 @@ function pinHtml(status,size){
 
 
 
-function iconFor(status){
+function iconFor(status,count){
 
   const size =
     markerSize();
@@ -122,7 +123,8 @@ function iconFor(status){
     html:
       pinHtml(
         status,
-        size
+        size,
+        count || 1
       ),
 
     iconSize:[
@@ -142,9 +144,63 @@ function iconFor(status){
 
 
 
+// Group sites that would visually overlap at the current zoom (same status,
+// within a small pixel radius) so they render as one pin with a count badge
+// instead of a stack of indistinguishable icons.
+function clusterSitesForDisplay(){
+
+  const threshold = 26; // px
+
+  const points = sites.map(site => ({
+    site,
+    pt: map.latLngToContainerPoint([site.lat, site.lng])
+  }));
+
+  const used = new Array(points.length).fill(false);
+  const clusters = [];
+
+  for(let i = 0; i < points.length; i++){
+
+    if(used[i]) continue;
+    used[i] = true;
+    const group = [points[i]];
+
+    for(let j = i + 1; j < points.length; j++){
+
+      if(used[j]) continue;
+      if(points[i].site.status !== points[j].site.status) continue;
+
+      const dx = points[i].pt.x - points[j].pt.x;
+      const dy = points[i].pt.y - points[j].pt.y;
+
+      if(Math.sqrt(dx*dx + dy*dy) < threshold){
+        group.push(points[j]);
+        used[j] = true;
+      }
+
+    }
+
+    clusters.push(group);
+
+  }
+
+  return clusters;
+
+}
+
+
+
 
 map.on(
   "zoomend",
+  renderPins
+);
+
+
+
+
+map.on(
+  "moveend",
   renderPins
 );
 
@@ -162,37 +218,86 @@ function renderPins(){
   markerLayer.clearLayers();
 
 
-  sites.forEach(site => {
+  const clusters =
+    clusterSitesForDisplay();
 
 
-    const marker =
-      L.marker(
-        [
-          site.lat,
-          site.lng
-        ],
+  clusters.forEach(group => {
+
+    if(group.length === 1){
+
+      const site = group[0].site;
+
+      const marker =
+        L.marker(
+          [
+            site.lat,
+            site.lng
+          ],
+          {
+            icon:
+              iconFor(site.status, 1)
+          }
+        );
+
+      marker.bindTooltip(
+        `
+        <p class="tooltip-name">
+          ${escapeHtml(site.name)}
+        </p>
+
+        <p class="tooltip-location">
+          ${escapeHtml(site.city)}
+          ${site.country ? ", " + escapeHtml(site.country) : ""}
+        </p>
+
+        <p class="tooltip-summary">
+          ${escapeHtml(site.abstract || "")}
+        </p>
+        `,
         {
-          icon:
-            iconFor(site.status)
+          direction:"top",
+          offset:[0,-8]
         }
       );
 
+      marker.on(
+        "click",
+        () =>
+          openEditor(site.id)
+      );
 
+      marker.addTo(markerLayer);
+
+      return;
+
+    }
+
+
+    // Multiple overlapping pins of the same status: show one marker with
+    // a count badge, centered on the group, and zoom in on click to
+    // reveal the individual sites.
+    const avgLat =
+      group.reduce((sum,g) => sum + g.site.lat, 0) / group.length;
+
+    const avgLng =
+      group.reduce((sum,g) => sum + g.site.lng, 0) / group.length;
+
+    const status = group[0].site.status;
+
+    const marker =
+      L.marker(
+        [avgLat, avgLng],
+        { icon: iconFor(status, group.length) }
+      );
+
+    const names =
+      group.map(g => escapeHtml(g.site.name)).join(", ");
 
     marker.bindTooltip(
       `
-      <p class="tooltip-name">
-        ${escapeHtml(site.name)}
-      </p>
-
-      <p class="tooltip-location">
-        ${escapeHtml(site.city)}
-        ${site.country ? ", " + escapeHtml(site.country) : ""}
-      </p>
-
-      <p class="tooltip-summary">
-        ${escapeHtml(site.abstract || "")}
-      </p>
+      <p class="tooltip-name">${group.length} sites here</p>
+      <p class="tooltip-summary">${names}</p>
       `,
       {
         direction:"top",
@@ -200,15 +305,16 @@ function renderPins(){
       }
     );
 
-
-
     marker.on(
       "click",
-      () =>
-        openEditor(site.id)
+      () => {
+        const bounds =
+          L.latLngBounds(
+            group.map(g => [g.site.lat, g.site.lng])
+          );
+        map.fitBounds(bounds.pad(0.6), { maxZoom: 17 });
+      }
     );
-
-
 
     marker.addTo(markerLayer);
 
@@ -388,9 +494,21 @@ const editorAbstract =
   );
 
 
+const editorAbstractDisplay =
+  document.getElementById(
+    "editor-abstract-display"
+  );
+
+
 const editorStops =
   document.getElementById(
     "editor-stops"
+  );
+
+
+const editorStopsDisplay =
+  document.getElementById(
+    "editor-stops-display"
   );
 
 
@@ -409,6 +527,12 @@ const visitedDateRow =
 const editorVisitedDate =
   document.getElementById(
     "editor-visited-date"
+  );
+
+
+const visitHistorySection =
+  document.getElementById(
+    "visit-history-section"
   );
 
 
@@ -527,9 +651,21 @@ function populateEditor(){
     pendingSite.abstract || "";
 
 
+  renderAbstractDisplay();
+
+  editorAbstract.hidden = true;
+  editorAbstractDisplay.hidden = false;
+
+
 
   editorStops.value =
     pendingSite.selectedStops.join("\n");
+
+
+  renderStopsDisplay();
+
+  editorStops.hidden = true;
+  editorStopsDisplay.hidden = false;
 
 
 
@@ -554,6 +690,139 @@ function populateEditor(){
     todayISO();
 
 }
+
+
+/* =========================================================
+   Inline-editable Abstract & Selected Stops
+   ========================================================= */
+
+
+function renderAbstractDisplay(){
+
+  const text =
+    pendingSite?.abstract || "";
+
+  if(text){
+
+    editorAbstractDisplay.textContent = text;
+    editorAbstractDisplay.classList.remove("placeholder-text");
+
+  }
+  else{
+
+    editorAbstractDisplay.textContent =
+      "Click to add a one-sentence summary.";
+    editorAbstractDisplay.classList.add("placeholder-text");
+
+  }
+
+}
+
+
+function renderStopsDisplay(){
+
+  editorStopsDisplay.innerHTML = "";
+
+  const stops =
+    pendingSite?.selectedStops || [];
+
+  if(stops.length === 0){
+
+    const li = document.createElement("li");
+    li.textContent = "Click to list what you want to see here.";
+    li.classList.add("placeholder-text");
+    li.style.listStyle = "none";
+    li.style.marginLeft = "-1.75rem";
+    editorStopsDisplay.appendChild(li);
+
+  }
+  else{
+
+    stops.forEach(stop => {
+
+      const li = document.createElement("li");
+      li.textContent = stop;
+      editorStopsDisplay.appendChild(li);
+
+    });
+
+  }
+
+}
+
+
+function enterAbstractEdit(){
+
+  editorAbstractDisplay.hidden = true;
+  editorAbstract.hidden = false;
+  editorAbstract.value = pendingSite?.abstract || "";
+  editorAbstract.focus();
+
+}
+
+
+function exitAbstractEdit(){
+
+  if(!pendingSite) return;
+
+  pendingSite.abstract =
+    firstSentence(editorAbstract.value.trim());
+
+  renderAbstractDisplay();
+
+  editorAbstract.hidden = true;
+  editorAbstractDisplay.hidden = false;
+
+}
+
+
+function enterStopsEdit(){
+
+  editorStopsDisplay.hidden = true;
+  editorStops.hidden = false;
+  editorStops.value =
+    (pendingSite?.selectedStops || []).join("\n");
+  editorStops.focus();
+
+}
+
+
+function exitStopsEdit(){
+
+  if(!pendingSite) return;
+
+  pendingSite.selectedStops =
+    editorStops.value
+      .split("\n")
+      .map(item => item.trim())
+      .filter(Boolean);
+
+  renderStopsDisplay();
+
+  editorStops.hidden = true;
+  editorStopsDisplay.hidden = false;
+
+}
+
+
+editorAbstractDisplay.addEventListener("click", enterAbstractEdit);
+editorAbstractDisplay.addEventListener("keydown", (e) => {
+  if(e.key === "Enter" || e.key === " "){
+    e.preventDefault();
+    enterAbstractEdit();
+  }
+});
+editorAbstract.addEventListener("blur", exitAbstractEdit);
+
+
+editorStopsDisplay.addEventListener("click", enterStopsEdit);
+editorStopsDisplay.addEventListener("keydown", (e) => {
+  if(e.key === "Enter" || e.key === " "){
+    e.preventDefault();
+    enterStopsEdit();
+  }
+});
+editorStops.addEventListener("blur", exitStopsEdit);
 
 /* =========================================================
    Status controls
@@ -622,6 +891,10 @@ function updateVisitedDateVisibility(){
   visitedDateRow.hidden =
     status !== "visited";
 
+
+  visitHistorySection.hidden =
+    status !== "visited";
+
 }
 
 
@@ -679,6 +952,15 @@ function saveEditor(){
 
   if(!pendingSite)
     return;
+
+
+  // Commit any inline field the user is still actively editing
+  // before reading its value.
+  if(document.activeElement === editorAbstract)
+    exitAbstractEdit();
+
+  if(document.activeElement === editorStops)
+    exitStopsEdit();
 
 
 
@@ -817,8 +1099,16 @@ editorModal.addEventListener(
   "click",
   e => {
 
-    if(e.target === editorModal)
-      closeEditor();
+    if(e.target === editorModal){
+
+      if(pendingSite){
+        saveEditor(); // saves and closes
+      }
+      else{
+        closeEditor();
+      }
+
+    }
 
   }
 );
