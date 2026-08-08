@@ -17,10 +17,7 @@
    ========================================================= */
 
 
-const STORAGE_KEY = "atlas_sites_v2";
-
-
-let sites = loadSites();
+let sites = [];
 
 let editingSiteId = null;
 let pendingSite = null;
@@ -433,14 +430,12 @@ function renderPins(){
    ========================================================= */
 
 
-function loadSites(){
+async function loadSites(){
 
   try{
 
-    const stored =
-      JSON.parse(
-        localStorage.getItem(STORAGE_KEY)
-      );
+    const res = await fetch("/api/sites");
+    const stored = await res.json();
 
 
     if(!Array.isArray(stored))
@@ -544,13 +539,12 @@ function normalizeSite(site){
 
 function saveSites(){
 
-  localStorage.setItem(
-    STORAGE_KEY,
-    JSON.stringify(
-      sites,
-      null,
-      2
-    )
+  fetch("/api/sites", {
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify(sites, null, 2)
+  }).catch(
+    err => console.error("Failed to save sites:", err)
   );
 
 }
@@ -2327,4 +2321,7 @@ document
       22
     );
 
-renderPins();
+loadSites().then(loaded => {
+  sites = loaded;
+  renderPins();
+});
