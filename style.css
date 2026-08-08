@@ -79,6 +79,8 @@ body {
 
   align-items:center;
 
+  justify-content:space-between;
+
   gap:1.1rem;
 
   padding:.55rem 1.25rem;
@@ -164,7 +166,7 @@ body {
 
   flex:1 1 320px;
 
-  max-width:440px;
+  max-width:560px;
 
   gap:.5rem;
 
@@ -301,21 +303,19 @@ body {
 
 
 /* =========================================================
-   Legend
+   Header actions (Export / Import pair)
    ========================================================= */
 
 
-.legend {
+.header-actions {
 
   display:flex;
 
   align-items:center;
 
-  gap:.85rem;
+  gap:.5rem;
 
-  font-family:var(--body-font);
-
-  font-size:.95rem;
+  flex-shrink:0;
 
 }
 
@@ -328,6 +328,52 @@ body {
   align-items:center;
 
   gap:.3rem;
+
+  padding:.2rem .3rem;
+
+  margin:-.2rem -.3rem;
+
+  border:none;
+
+  background:none;
+
+  border-radius:2px;
+
+  font-family:var(--body-font);
+
+  font-size:.9rem;
+
+  color:var(--ink);
+
+  cursor:pointer;
+
+  opacity:1;
+
+  transition:opacity .15s ease, background .15s ease;
+
+}
+
+
+
+.legend-item:hover {
+
+  background:rgba(43,27,18,.06);
+
+}
+
+
+
+.legend-item-inactive {
+
+  opacity:.4;
+
+}
+
+
+
+.legend-item-inactive:hover {
+
+  opacity:.65;
 
 }
 
@@ -374,6 +420,37 @@ body {
 .ghost-btn:hover {
 
   background:var(--parchment-dark);
+
+}
+
+
+
+/* =========================================================
+   Map-overlay legend
+   ========================================================= */
+
+
+.map-legend {
+
+  display:flex;
+
+  flex-direction:column;
+
+  gap:.4rem;
+
+  padding:.55rem .75rem;
+
+  background:var(--parchment);
+
+  border:1.5px solid var(--ink);
+
+  border-radius:2px;
+
+  font-family:var(--body-font);
+
+  font-size:.9rem;
+
+  box-shadow:2px 2px 0 rgba(43,27,18,.2);
 
 }
 
@@ -462,6 +539,99 @@ body {
   border:1.5px solid var(--parchment);
 
   box-shadow:0 1px 2px rgba(43,27,18,.45);
+
+}
+
+
+
+/* =========================================================
+   Cluster picker popup (overlapping pins)
+   ========================================================= */
+
+
+.leaflet-popup-content-wrapper {
+
+  background:var(--parchment);
+
+  border:1.5px solid var(--ink);
+
+  border-radius:2px;
+
+  box-shadow:2px 2px 0 rgba(43,27,18,.25);
+
+}
+
+
+
+.leaflet-popup-tip {
+
+  background:var(--parchment);
+
+  border:1.5px solid var(--ink);
+
+  border-top:none;
+
+  border-left:none;
+
+}
+
+
+
+.leaflet-popup-content {
+
+  margin:.75rem .9rem;
+
+}
+
+
+
+.cluster-popup-heading {
+
+  margin:0 0 .5rem;
+
+  font-family:var(--body-font);
+
+  font-weight:600;
+
+  font-size:.95rem;
+
+}
+
+
+
+.cluster-popup-item {
+
+  display:block;
+
+  width:100%;
+
+  text-align:left;
+
+  padding:.4rem .5rem;
+
+  margin-bottom:.25rem;
+
+  font-family:var(--body-font);
+
+  font-size:.95rem;
+
+  background:var(--paper);
+
+  color:var(--ink);
+
+  border:1px solid var(--rule);
+
+  cursor:pointer;
+
+}
+
+
+
+.cluster-popup-item:hover {
+
+  background:var(--parchment-dark);
+
+  border-color:var(--ink);
 
 }
 
@@ -951,6 +1121,58 @@ textarea::placeholder {
 
 
 
+.visit-list {
+
+  list-style:none;
+
+  margin:0;
+
+  padding:0;
+
+  font-family:var(--body-font);
+
+  font-size:.95rem;
+
+}
+
+
+
+.visit-list li {
+
+  display:flex;
+
+  justify-content:space-between;
+
+  align-items:center;
+
+  padding:.4rem 0;
+
+  border-bottom:1px dotted var(--rule);
+
+}
+
+
+
+.visit-list button {
+
+  background:none;
+
+  border:none;
+
+  color:var(--burgundy);
+
+  font-family:var(--body-font);
+
+  text-decoration:underline;
+
+  cursor:pointer;
+
+  padding:0;
+
+}
+
+
+
 .visit-date-row {
 
   margin-top:.75rem;
@@ -979,11 +1201,25 @@ textarea::placeholder {
 
 
 
+.visit-history-heading {
 
+  font-size:1rem;
+
+  font-weight:600;
+
+  margin:1rem 0 .35rem;
+
+}
 
 
 
 .log-visit-row {
+
+  display:flex;
+
+  align-items:center;
+
+  gap:.5rem;
 
   margin-top:1rem;
 
@@ -993,7 +1229,9 @@ textarea::placeholder {
 
 .log-visit-row input {
 
-  width:100%;
+  width:auto;
+
+  flex:0 0 150px;
 
   padding:.45rem;
 
@@ -1005,15 +1243,13 @@ textarea::placeholder {
 
 
 
-
-
-
-
 .panel-actions {
 
   display:flex;
 
-  justify-content:flex-end;
+  justify-content:space-between;
+
+  align-items:center;
 
   gap:.5rem;
 
@@ -1023,9 +1259,19 @@ textarea::placeholder {
 
 
 
-.danger-link {
+.panel-actions-right {
 
-  margin-top:1.25rem;
+  display:flex;
+
+  align-items:center;
+
+  gap:.5rem;
+
+}
+
+
+
+.danger-link {
 
   background:none;
 

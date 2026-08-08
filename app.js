@@ -25,6 +25,12 @@ let sites = loadSites();
 let editingSiteId = null;
 let pendingSite = null;
 
+// Legend acts as a filter: unchecking a status hides those pins from the map.
+const visibleStatuses = {
+  visited:true,
+  wantToVisit:true
+};
+
 
 
 
@@ -35,8 +41,63 @@ let pendingSite = null;
 
 
 const map = L.map("map", {
-  worldCopyJump:true
+  worldCopyJump:true,
+  zoomControl:false
 }).setView([30,10],2.5);
+
+
+L.control.zoom({ position:"bottomleft" }).addTo(map);
+
+
+const LegendControl = L.Control.extend({
+
+  options:{ position:"topleft" },
+
+  onAdd:function(){
+
+    const div =
+      L.DomUtil.create("div","map-legend");
+
+    div.innerHTML = `
+      <button type="button" class="legend-item" data-status="visited">
+        <span class="legend-icon" id="legend-icon-visited"></span>
+        Visited
+      </button>
+      <button type="button" class="legend-item" data-status="wantToVisit">
+        <svg class="legend-icon" viewBox="0 0 40 40">
+          <use href="#icon-compass-star"></use>
+        </svg>
+        Want to visit
+      </button>
+    `;
+
+    L.DomEvent.disableClickPropagation(div);
+
+    div.querySelectorAll(".legend-item").forEach(btn => {
+
+      btn.addEventListener("click", () => {
+
+        const status = btn.dataset.status;
+        visibleStatuses[status] = !visibleStatuses[status];
+
+        btn.classList.toggle(
+          "legend-item-inactive",
+          !visibleStatuses[status]
+        );
+
+        renderPins();
+
+      });
+
+    });
+
+    return div;
+
+  }
+
+});
+
+new LegendControl().addTo(map);
 
 
 
@@ -88,7 +149,7 @@ function pinHtml(status,size,count){
     `
     : `
       <svg width="100%" height="100%" viewBox="0 0 40 40">
-        <use href="#icon-compass"></use>
+        <use href="#icon-compass-star"></use>
       </svg>
     `;
 
@@ -151,7 +212,12 @@ function clusterSitesForDisplay(){
 
   const threshold = 26; // px
 
-  const points = sites.map(site => ({
+  const visibleSites =
+    sites.filter(
+      site => visibleStatuses[site.status]
+    );
+
+  const points = visibleSites.map(site => ({
     site,
     pt: map.latLngToContainerPoint([site.lat, site.lng])
   }));
@@ -308,11 +374,46 @@ function renderPins(){
     marker.on(
       "click",
       () => {
-        const bounds =
-          L.latLngBounds(
-            group.map(g => [g.site.lat, g.site.lng])
+
+        const container =
+          document.createElement("div");
+        container.className = "cluster-popup";
+
+        const heading =
+          document.createElement("p");
+        heading.className = "cluster-popup-heading";
+        heading.textContent =
+          `${group.length} sites here — choose one:`;
+        container.appendChild(heading);
+
+        group.forEach(g => {
+
+          const btn =
+            document.createElement("button");
+          btn.type = "button";
+          btn.className = "cluster-popup-item";
+          btn.textContent =
+            g.site.city
+            ? `${g.site.name} (${g.site.city})`
+            : g.site.name;
+
+          btn.addEventListener(
+            "click",
+            () => {
+              map.closePopup();
+              openEditor(g.site.id);
+            }
           );
-        map.fitBounds(bounds.pad(0.6), { maxZoom: 17 });
+
+          container.appendChild(btn);
+
+        });
+
+        L.popup({ closeButton:true, maxWidth:260 })
+          .setLatLng([avgLat, avgLng])
+          .setContent(container)
+          .openOn(map);
+
       }
     );
 
@@ -518,18 +619,6 @@ const editorImageUpload =
   );
 
 
-const visitedDateRow =
-  document.getElementById(
-    "visited-date-row"
-  );
-
-
-const editorVisitedDate =
-  document.getElementById(
-    "editor-visited-date"
-  );
-
-
 const visitHistorySection =
   document.getElementById(
     "visit-history-section"
@@ -606,6 +695,11 @@ function openEditor(siteId=null){
 
   editorModal.hidden=false;
 
+  const card =
+    editorModal.querySelector(".panel-card");
+
+  if(card)
+    card.scrollTop = 0;
 
 }
 
@@ -684,10 +778,7 @@ function populateEditor(){
 
   updateVisitedDateVisibility();
 
-
-  editorVisitedDate.value =
-    pendingSite.visits[0] ||
-    todayISO();
+  renderVisitHistory();
 
 }
 
@@ -888,16 +979,10 @@ function updateVisitedDateVisibility(){
     )?.value;
 
 
-  visitedDateRow.hidden =
-    status !== "visited";
-
-
   visitHistorySection.hidden =
     status !== "visited";
 
 }
-
-
 
 
 
@@ -915,7 +1000,7 @@ function scrollEditorToVisitDate(){
 
 
 
-  visitedDateRow.scrollIntoView({
+  visitHistorySection.scrollIntoView({
 
     behavior:"smooth",
 
@@ -924,6 +1009,165 @@ function scrollEditorToVisitDate(){
   });
 
 }
+
+
+
+
+/* =========================================================
+   Visit history list + Log Visit
+   ========================================================= */
+
+
+const detailVisitsList =
+  document.getElementById(
+    "detail-visits"
+  );
+
+
+const logVisitDateInput =
+  document.getElementById(
+    "log-visit-date"
+  );
+
+
+const logVisitBtn =
+  document.getElementById(
+    "log-visit-btn"
+  );
+
+
+function renderVisitHistory(){
+
+  if(!pendingSite)
+    return;
+
+
+  detailVisitsList.innerHTML = "";
+
+
+  if(pendingSite.visits.length === 0){
+
+    const li =
+      document.createElement("li");
+
+    li.textContent =
+      "Not logged yet";
+
+    li.classList.add("placeholder-text");
+
+    li.style.border = "none";
+
+    detailVisitsList.appendChild(li);
+
+    return;
+
+  }
+
+
+  [...pendingSite.visits]
+    .sort()
+    .reverse()
+    .forEach(date => {
+
+      const li =
+        document.createElement("li");
+
+
+      const span =
+        document.createElement("span");
+
+      span.textContent =
+        formatVisitDate(date);
+
+
+      const removeBtn =
+        document.createElement("button");
+
+      removeBtn.type = "button";
+      removeBtn.textContent = "remove";
+
+      removeBtn.addEventListener(
+        "click",
+        () => {
+
+          pendingSite.visits =
+            pendingSite.visits.filter(
+              d => d !== date
+            );
+
+          renderVisitHistory();
+
+        }
+      );
+
+
+      li.appendChild(span);
+      li.appendChild(removeBtn);
+      detailVisitsList.appendChild(li);
+
+    });
+
+}
+
+
+function formatVisitDate(iso){
+
+  const d =
+    new Date(iso + "T00:00:00");
+
+  return d.toLocaleDateString(
+    undefined,
+    {
+      year:"numeric",
+      month:"short",
+      day:"numeric"
+    }
+  );
+
+}
+
+
+logVisitBtn.addEventListener(
+  "click",
+  () => {
+
+    if(!pendingSite)
+      return;
+
+    if(!logVisitDateInput.value)
+      return;
+
+
+    if(
+      !pendingSite.visits.includes(
+        logVisitDateInput.value
+      )
+    ){
+
+      pendingSite.visits.push(
+        logVisitDateInput.value
+      );
+
+    }
+
+
+    pendingSite.status = "visited";
+
+    document
+      .querySelector(
+        'input[name="status"][value="visited"]'
+      ).checked = true;
+
+    updateVisitedDateVisibility();
+
+
+    renderVisitHistory();
+
+
+    logVisitDateInput.value = "";
+
+  }
+);
 
 
 
@@ -988,27 +1232,6 @@ function saveEditor(){
     document.querySelector(
       'input[name="status"]:checked'
     ).value;
-
-
-
-  if(
-    pendingSite.status === "visited" &&
-    editorVisitedDate.value
-  ){
-
-    if(
-      !pendingSite.visits.includes(
-        editorVisitedDate.value
-      )
-    ){
-
-      pendingSite.visits.push(
-        editorVisitedDate.value
-      );
-
-    }
-
-  }
 
 
 
@@ -1383,6 +1606,29 @@ function renderSearchResults(results){
 
 
 
+// Same name (case-insensitive) and within roughly ~1km — almost certainly
+// the same real-world site, not a coincidence.
+function findPossibleDuplicate(name, lat, lng){
+
+  const nameLower =
+    name.trim().toLowerCase();
+
+  return sites.find(s => {
+
+    if(s.name.trim().toLowerCase() !== nameLower)
+      return false;
+
+    const dLat = Math.abs(s.lat - lat);
+    const dLng = Math.abs(s.lng - lng);
+
+    return dLat < 0.01 && dLng < 0.01;
+
+  });
+
+}
+
+
+
 async function chooseSearchResult(result){
 
   searchResults.hidden=true;
@@ -1395,6 +1641,41 @@ async function chooseSearchResult(result){
     result.address || {};
 
 
+  const name =
+    result.namedetails?.name ||
+    result.display_name.split(",")[0];
+
+
+  const lat =
+    Number(result.lat);
+
+
+  const lng =
+    Number(result.lon);
+
+
+
+  const duplicate =
+    findPossibleDuplicate(name, lat, lng);
+
+
+  if(duplicate){
+
+    const openExisting =
+      confirm(
+        `You already have a pin for "${duplicate.name}" near here.\n\n` +
+        `OK \u2014 open that existing pin\n` +
+        `Cancel \u2014 add a new pin here anyway`
+      );
+
+    if(openExisting){
+      openEditor(duplicate.id);
+      return;
+    }
+
+  }
+
+
 
   pendingSite = {
 
@@ -1403,9 +1684,7 @@ async function chooseSearchResult(result){
 
 
 
-    name:
-      result.namedetails?.name ||
-      result.display_name.split(",")[0],
+    name,
 
 
 
@@ -1424,13 +1703,11 @@ async function chooseSearchResult(result){
 
 
 
-    lat:
-      Number(result.lat),
+    lat,
 
 
 
-    lng:
-      Number(result.lon)
+    lng
 
 
   };
@@ -1443,6 +1720,12 @@ async function chooseSearchResult(result){
   populateEditor();
 
   editorModal.hidden=false;
+
+  const searchCard =
+    editorModal.querySelector(".panel-card");
+
+  if(searchCard)
+    searchCard.scrollTop = 0;
 
 
 

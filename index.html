@@ -99,40 +99,7 @@ hidden>
 
 
 
-<div class="legend">
-
-
-<span class="legend-item">
-
-<span
-class="legend-icon"
-id="legend-icon-visited">
-</span>
-
-Visited
-
-</span>
-
-
-
-
-
-<span class="legend-item">
-
-<svg class="legend-icon"
-viewBox="0 0 40 40">
-
-<use href="#icon-compass"></use>
-
-</svg>
-
-Want to visit
-
-</span>
-
-
-
-
+<div class="header-actions">
 
 <button
 id="export-btn"
@@ -163,6 +130,7 @@ hidden>
 
 
 </header>
+
 
 
 
@@ -320,21 +288,13 @@ Already visited
 </fieldset>
 
 
-<div id="visited-date-row" class="visit-date-row">
-  <label class="field-label" for="editor-visited-date">Date visited</label>
-  <input
-  type="date"
-  id="editor-visited-date">
-</div>
-
-
 <div id="visit-history-section">
 
-<h3 class="section-heading">Visit history</h3>
+<h3 class="section-heading visit-history-heading">Visit history</h3>
     <ul id="detail-visits" class="visit-list"></ul>
 
 <div class="log-visit-row">
-  <input type="date" id="log-visit-date" />
+  <input type="date" id="log-visit-date" class="visit-date-input" />
   <button id="log-visit-btn" class="primary-btn">Log Visit</button>
 </div>
 
@@ -344,6 +304,19 @@ Already visited
 
 
 <div class="panel-actions">
+
+
+<button
+id="delete-pin-btn"
+class="danger-link">
+
+Remove this pin
+
+</button>
+
+
+
+<div class="panel-actions-right">
 
 
 <button
@@ -365,22 +338,11 @@ Save
 </button>
 
 
-
 </div>
 
 
 
-
-
-
-
-<button
-id="delete-pin-btn"
-class="danger-link">
-
-Remove this pin
-
-</button>
+</div>
 
 
 
@@ -458,6 +420,24 @@ fill="#4A3A10"/>
 
 
 </symbol>
+
+
+
+<symbol
+id="icon-compass-star"
+viewBox="0 0 40 40">
+
+
+<path
+fill="#c9a227"
+stroke="#2b1b12"
+stroke-width="1"
+stroke-linejoin="round"
+d="M20.0 2.0 L21.5 16.3 L27.1 12.9 L23.7 18.5 L38.0 20.0 L23.7 21.5 L27.1 27.1 L21.5 23.7 L20.0 38.0 L18.5 23.7 L12.9 27.1 L16.3 21.5 L2.0 20.0 L16.3 18.5 L12.9 12.9 L18.5 16.3 Z"/>
+
+
+</symbol>
+
 
 
 
