@@ -375,14 +375,6 @@ function renderPins(){
         const container =
           document.createElement("div");
         container.className = "cluster-popup";
-
-        const heading =
-          document.createElement("p");
-        heading.className = "cluster-popup-heading";
-        heading.textContent =
-          `${group.length} sites here — choose one:`;
-        container.appendChild(heading);
-
         group.forEach(g => {
 
           const btn =

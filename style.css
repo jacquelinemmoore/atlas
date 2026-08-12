@@ -1298,22 +1298,53 @@ textarea::placeholder {
    ========================================================= */
 
 
-@media(max-width:640px){
+@media(max-width:900px){
 
   #app-header {
 
     flex-direction:column;
 
+    flex-wrap:nowrap;
+
     align-items:stretch;
+
+    justify-content:flex-start;
+
+    gap:.6rem;
 
   }
 
 
+  /* Explicit stacking order, regardless of source order in the HTML:
+     1. Title + tagline   2. Search bar   3. Import/Export */
+
   .header-inner {
+
+    order:1;
 
     flex-direction:column;
 
     gap:.2rem;
+
+  }
+
+
+  #search-form {
+
+    order:2;
+
+    flex:0 0 auto;
+
+    max-width:none;
+
+  }
+
+
+  .header-actions {
+
+    order:3;
+
+    justify-content:flex-start;
 
   }
 
