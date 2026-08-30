@@ -28,6 +28,17 @@ const visibleStatuses = {
   wantToVisit:true
 };
 
+let currentView = "map"; // "map" | "list"
+
+function refreshView(){
+  if(currentView === "list"){
+    renderListView();
+  }
+  else{
+    renderPins();
+  }
+}
+
 
 
 
@@ -82,7 +93,7 @@ const LegendControl = L.Control.extend({
           !visibleStatuses[status]
         );
 
-        renderPins();
+        refreshView();
 
       });
 
@@ -276,6 +287,51 @@ map.on(
    ========================================================= */
 
 
+// Prefer opening the tooltip/card above the pin (matches the old behavior).
+// Only fall back to another side if "top" would actually be clipped by
+// the map's own edge on that side.
+function pickCardDirection(lat, lng, estimatedWidth, estimatedHeight){
+
+  const pt =
+    map.latLngToContainerPoint([lat, lng]);
+
+  const size =
+    map.getSize();
+
+
+  const spaceAbove = pt.y;
+  const spaceBelow = size.y - pt.y;
+  const spaceLeft = pt.x;
+  const spaceRight = size.x - pt.x;
+
+
+  // "top" and "bottom" center the card horizontally on the marker, so
+  // they need clearance on BOTH sides, not just vertical room.
+  const halfWidth = estimatedWidth / 2;
+  const fitsCenteredHorizontally =
+    spaceLeft >= halfWidth && spaceRight >= halfWidth;
+
+
+  if(spaceAbove >= estimatedHeight && fitsCenteredHorizontally)
+    return "top";
+
+  if(spaceBelow >= estimatedHeight && fitsCenteredHorizontally)
+    return "bottom";
+
+  if(spaceRight >= estimatedWidth)
+    return "right";
+
+  if(spaceLeft >= estimatedWidth)
+    return "left";
+
+
+  // Nothing fits cleanly — prefer whichever vertical side has more room.
+  return spaceAbove >= spaceBelow ? "top" : "bottom";
+
+}
+
+
+
 function renderPins(){
 
   markerLayer.clearLayers();
@@ -319,15 +375,19 @@ function renderPins(){
         </p>
         `,
         {
-          direction:"top",
+          direction:
+            pickCardDirection(site.lat, site.lng, 360, 220),
+          sticky:false,
           offset:[0,-8]
         }
       );
 
       marker.on(
         "click",
-        () =>
-          openEditor(site.id)
+        () => {
+          marker.closeTooltip();
+          openEditor(site.id);
+        }
       );
 
       marker.addTo(markerLayer);
@@ -363,7 +423,10 @@ function renderPins(){
       <p class="tooltip-summary">${names}</p>
       `,
       {
-        direction:"top",
+        direction:
+          pickCardDirection(avgLat, avgLng, 220, 140),
+        sticky:false,
+        className:"cluster-tooltip",
         offset:[0,-8]
       }
     );
@@ -371,6 +434,10 @@ function renderPins(){
     marker.on(
       "click",
       () => {
+
+        // Hover state and click state shouldn't coexist — the tooltip
+        // has done its job once the popup takes over.
+        marker.closeTooltip();
 
         const container =
           document.createElement("div");
@@ -398,7 +465,14 @@ function renderPins(){
 
         });
 
-        L.popup({ closeButton:true, maxWidth:260 })
+        L.popup({
+          closeButton:true,
+          maxWidth:260,
+          minWidth:220,
+          autoPan:true,
+          autoPanPadding:[60,60],
+          autoPanPaddingTopLeft:[60,150]
+        })
           .setLatLng([avgLat, avgLng])
           .setContent(container)
           .openOn(map);
@@ -411,6 +485,157 @@ function renderPins(){
   });
 
 }
+
+
+
+
+/* =========================================================
+   List view
+   ========================================================= */
+
+
+const mapEl =
+  document.getElementById("map");
+
+const listViewEl =
+  document.getElementById("list-view");
+
+const listViewContent =
+  document.getElementById("list-view-content");
+
+const viewToggleBtn =
+  document.getElementById("view-toggle-btn");
+
+
+function renderListView(){
+
+  if(!listViewContent)
+    return;
+
+
+  const visibleSites =
+    sites.filter(
+      site => visibleStatuses[site.status]
+    );
+
+
+  if(visibleSites.length === 0){
+
+    listViewContent.innerHTML =
+      `<p class="list-empty-state">No sites match the current filters.</p>`;
+
+    return;
+
+  }
+
+
+  const byCountry = {};
+
+  visibleSites.forEach(site => {
+
+    const country =
+      site.country || "Unknown";
+
+    if(!byCountry[country])
+      byCountry[country] = [];
+
+    byCountry[country].push(site);
+
+  });
+
+
+  const countries =
+    Object.keys(byCountry)
+      .sort((a,b) => a.localeCompare(b));
+
+
+  listViewContent.innerHTML = "";
+
+
+  countries.forEach(country => {
+
+    const heading =
+      document.createElement("h2");
+
+    heading.className =
+      "list-country-heading";
+
+    heading.textContent = country;
+
+    listViewContent.appendChild(heading);
+
+
+    const sortedSites =
+      [...byCountry[country]]
+        .sort((a,b) => a.name.localeCompare(b.name));
+
+
+    sortedSites.forEach(site => {
+
+      const item =
+        document.createElement("button");
+
+      item.type = "button";
+      item.className = "list-site-item";
+
+      const icon =
+        document.createElement("span");
+      icon.className = "list-site-icon";
+      icon.innerHTML = pinHtml(site.status, 22, 1);
+
+      const name =
+        document.createElement("span");
+      name.className = "list-site-name";
+      name.textContent = site.name;
+
+      const city =
+        document.createElement("span");
+      city.className = "list-site-city";
+      city.textContent = site.city || "";
+
+      item.appendChild(icon);
+      item.appendChild(name);
+      item.appendChild(city);
+
+      item.addEventListener(
+        "click",
+        () => openEditor(site.id)
+      );
+
+      listViewContent.appendChild(item);
+
+    });
+
+  });
+
+}
+
+
+viewToggleBtn?.addEventListener("click", () => {
+
+  if(currentView === "map"){
+
+    currentView = "list";
+    mapEl.hidden = true;
+    listViewEl.hidden = false;
+    viewToggleBtn.textContent = "Map View";
+    renderListView();
+
+  }
+  else{
+
+    currentView = "map";
+    mapEl.hidden = false;
+    listViewEl.hidden = true;
+    viewToggleBtn.textContent = "List View";
+    renderPins();
+
+    // Leaflet needs to recompute its size after being hidden/shown.
+    setTimeout(() => map.invalidateSize(), 0);
+
+  }
+
+});
 
 
 
@@ -1252,7 +1477,7 @@ function saveEditor(){
 
   saveSites();
 
-  renderPins();
+  refreshView();
 
   closeEditor();
 
@@ -1386,7 +1611,7 @@ document
 
       saveSites();
 
-      renderPins();
+      refreshView();
 
       closeEditor();
 
@@ -2168,7 +2393,7 @@ normalizeSite
 
 saveSites();
 
-renderPins();
+refreshView();
 
 
 }

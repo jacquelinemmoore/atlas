@@ -485,6 +485,153 @@ body {
 
 
 
+/* =========================================================
+   List view
+   ========================================================= */
+
+
+#list-view {
+
+  flex:1;
+
+  overflow-y:auto;
+
+  background:var(--parchment);
+
+  padding:1.5rem 1.25rem 3rem;
+
+}
+
+
+
+#list-view-content {
+
+  max-width:640px;
+
+  margin:0 auto;
+
+}
+
+
+
+.list-country-heading {
+
+  margin:1.75rem 0 .6rem;
+
+  padding-bottom:.3rem;
+
+  font-family:var(--display-font);
+
+  font-size:1.3rem;
+
+  letter-spacing:.03em;
+
+  border-bottom:1.5px solid var(--ink);
+
+}
+
+
+
+.list-country-heading:first-child {
+
+  margin-top:0;
+
+}
+
+
+
+.list-site-item {
+
+  display:flex;
+
+  align-items:center;
+
+  gap:.65rem;
+
+  width:100%;
+
+  padding:.55rem .5rem;
+
+  margin-bottom:.35rem;
+
+  text-align:left;
+
+  font-family:var(--body-font);
+
+  font-size:1rem;
+
+  background:none;
+
+  color:var(--ink);
+
+  border:none;
+
+  border-bottom:1px dotted var(--rule);
+
+  cursor:pointer;
+
+}
+
+
+
+.list-site-item:hover {
+
+  background:rgba(43,27,18,.05);
+
+}
+
+
+
+.list-site-icon {
+
+  flex:0 0 auto;
+
+  width:22px;
+
+  height:22px;
+
+}
+
+
+
+.list-site-name {
+
+  flex:1;
+
+  font-weight:600;
+
+}
+
+
+
+.list-site-city {
+
+  color:var(--ink);
+
+  opacity:.7;
+
+  font-style:italic;
+
+  font-size:.9rem;
+
+}
+
+
+
+.list-empty-state {
+
+  font-family:var(--body-font);
+
+  font-style:italic;
+
+  opacity:.7;
+
+  margin-top:1rem;
+
+}
+
+
+
 
 
 
@@ -580,6 +727,48 @@ body {
 .leaflet-popup-content {
 
   margin:.75rem .9rem;
+
+  width:auto !important;
+
+}
+
+
+
+.leaflet-popup-close-button {
+
+  top:6px !important;
+
+  right:8px !important;
+
+  width:20px !important;
+
+  height:20px !important;
+
+  font-size:18px !important;
+
+  color:var(--ink) !important;
+
+}
+
+
+
+.leaflet-popup-close-button:hover {
+
+  color:var(--burgundy) !important;
+
+  background:none !important;
+
+}
+
+
+
+.cluster-popup {
+
+  min-width:220px;
+
+  max-width:260px;
+
+  padding-top:1.1rem;
 
 }
 
@@ -722,6 +911,22 @@ body {
 .leaflet-tooltip-top:before {
 
   border-top-color:var(--ink);
+
+}
+
+
+
+/* Cluster hover card matches the cluster click-popup's width, so the
+   hover state and click state don't visibly jump in size. Fixed width
+   (not auto) avoids the browser's shrink-to-fit sometimes collapsing
+   it down to an unreadably narrow column. */
+.leaflet-tooltip.cluster-tooltip {
+
+  width:220px;
+
+  max-width:220px;
+
+  padding:.75rem .9rem;
 
 }
 
