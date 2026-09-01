@@ -2840,5 +2840,5 @@ document
 
 loadSites().then(loaded => {
   sites = loaded;
-  renderPins();
+  refreshView();
 });
