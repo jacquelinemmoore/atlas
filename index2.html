@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+<meta name="theme-color" content="#f1e7d0">
+
+<title>Atlas — Personal Museum & Historical Site Map</title>
+
+
+<link rel="stylesheet"
+href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+
+<link rel="preconnect"
+href="https://fonts.googleapis.com">
+
+<link rel="preconnect"
+href="https://fonts.gstatic.com"
+crossorigin>
+
+
+<link rel="icon"
+href="assets/wax-seal.png"
+type="image/png">
+
+
+<link href="https://fonts.googleapis.com/css2?family=IM+Fell+DW+Pica:ital,wght@0,400;0,700;1,400&family=EB+Garamond:wght@400;500;600;700&family=Cormorant+Garamond:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
+rel="stylesheet">
+
+
+<link rel="stylesheet"
+href="style.css">
+
+
+</head>
+
+
+<body>
+
+
+<header id="app-header">
+
+
+<div class="header-inner">
+
+<h1 class="wordmark">
+Atlas
+</h1>
+
+
+<p class="tagline">
+A ledger of historical places of interest.
+</p>
+
+
+</div>
+
+
+
+
+
+<form id="search-form"
+autocomplete="off">
+
+
+<input
+id="search-input"
+type="text"
+placeholder="Find a museum, church, castle, ruin..."
+aria-label="Search for a site"
+/>
+
+
+<button
+id="search-button"
+type="submit">
+
+Search
+
+</button>
+
+
+
+<div id="search-results"
+class="search-results"
+hidden>
+
+</div>
+
+
+</form>
+
+
+
+
+
+
+<div class="header-actions">
+
+<button
+id="view-toggle-btn"
+class="ghost-btn"
+type="button">
+
+List View
+
+</button>
+
+
+<button
+id="export-btn"
+class="ghost-btn">
+
+Export
+
+</button>
+
+
+<button
+id="import-btn"
+class="ghost-btn">
+
+Import
+
+</button>
+
+
+<input
+id="import-file"
+type="file"
+accept="application/json"
+hidden>
+
+
+</div>
+
+
+</header>
+
+
+
+
+<div id="view-area">
+
+  <div id="map-legend" class="map-legend">
+    <button type="button" class="legend-item" data-status="visited">
+      <span class="legend-icon" id="legend-icon-visited"></span>
+      Visited
+    </button>
+    <button type="button" class="legend-item" data-status="wantToVisit">
+      <svg class="legend-icon" viewBox="0 0 40 40">
+        <use href="#icon-compass-star"></use>
+      </svg>
+      Want to Visit
+    </button>
+  </div>
+
+  <main id="map"></main>
+
+  <div id="list-view" hidden>
+    <div id="list-view-filter-row">
+      <input
+        type="text"
+        id="list-filter-input"
+        placeholder="Filter your pins by name or city&hellip;"
+        aria-label="Filter your pins by name or city"
+      />
+    </div>
+    <div id="list-view-content"></div>
+  </div>
+
+</div>
+
+
+
+
+
+
+
+<div id="editor-modal"
+class="panel"
+hidden>
+
+
+<div class="panel-card">
+
+
+
+<button
+class="panel-close"
+id="editor-close"
+aria-label="Close">
+
+×
+
+
+</button>
+
+
+
+
+<h2 id="editor-name">
+Site name
+</h2>
+
+
+<p id="editor-location"
+class="muted">
+</p>
+
+
+
+
+
+<div class="editor-image-wrap">
+
+  <img
+  id="editor-image"
+  alt="Site image">
+
+</div>
+
+
+<div class="image-controls">
+  <label class="upload-label">
+    Use your own photo
+    <input
+      type="file"
+      id="editor-image-upload"
+      accept="image/*"
+      hidden>
+  </label>
+
+</div>
+
+
+
+
+
+
+
+<label class="field-label">
+Abstract
+</label>
+
+<p
+id="editor-abstract-display"
+class="inline-editable-text"
+tabindex="0">
+</p>
+
+<textarea
+id="editor-abstract"
+class="inline-editable-field"
+rows="2"
+placeholder="A brief description of this site."
+hidden>
+</textarea>
+
+
+
+
+<label class="field-label">
+Selected Stops
+</label>
+
+<ul
+id="editor-stops-display"
+class="inline-editable-list"
+tabindex="0">
+</ul>
+
+<textarea
+id="editor-stops"
+class="inline-editable-field"
+rows="5"
+placeholder="Example:&#10; Tribuna Room&#10;Temple of Serapus&#10;Portrait of Lady Jane Grey"
+hidden>
+</textarea>
+
+
+
+
+
+
+
+
+<fieldset class="status-choice">
+
+
+<legend>
+Status
+</legend>
+
+
+
+<label>
+
+<input
+type="radio"
+name="status"
+value="wantToVisit"
+checked>
+
+Want to visit
+
+</label>
+
+
+<label>
+
+<input
+type="radio"
+name="status"
+value="visited">
+
+Already visited
+
+</label>
+
+</fieldset>
+
+
+<div id="visit-history-section">
+
+<h3 class="section-heading visit-history-heading">Visit history</h3>
+    <ul id="detail-visits" class="visit-list"></ul>
+
+<div class="log-visit-row">
+  <input type="date" id="log-visit-date" class="visit-date-input" />
+  <button id="log-visit-btn" class="primary-btn">Log Visit</button>
+</div>
+
+</div>
+
+
+
+
+<div class="panel-actions">
+
+
+<button
+id="delete-pin-btn"
+class="danger-link">
+
+Remove this pin
+
+</button>
+
+
+
+<div class="panel-actions-right">
+
+
+<button
+id="editor-cancel"
+class="ghost-btn">
+
+Cancel
+
+</button>
+
+
+
+<button
+id="editor-save"
+class="primary-btn">
+
+Save
+
+</button>
+
+
+</div>
+
+
+
+</div>
+
+
+
+</div>
+
+
+</div>
+
+<div id="confirm-dialog" class="panel" hidden>
+
+  <div class="panel-card confirm-dialog-card">
+
+    <p id="confirm-dialog-message" class="confirm-dialog-message"></p>
+
+    <div class="panel-actions">
+      <button id="confirm-dialog-cancel" class="ghost-btn" type="button">Cancel</button>
+      <button id="confirm-dialog-ok" class="primary-btn" type="button">OK</button>
+    </div>
+
+  </div>
+
+</div>
+
+
+
+
+
+
+
+
+
+
+<svg width="0"
+height="0"
+style="position:absolute">
+
+
+<defs>
+
+
+
+
+<symbol
+id="icon-star-mini"
+viewBox="0 0 40 40">
+
+
+<path
+fill="#f1e0b0"
+d="M20 6l3 9.5 10 .3-8 6.2 3 9.6-8-6-8 6 3-9.6-8-6.2 10-.3z"/>
+
+
+</symbol>
+
+
+
+
+
+
+
+<symbol
+id="icon-compass"
+viewBox="0 0 40 40">
+
+
+<circle
+cx="20"
+cy="20"
+r="17"
+fill="none"
+stroke="#C9A227"
+stroke-width="1.5"/>
+
+
+<path
+fill="#C9A227"
+d="M20 5l3.2 13.2 3.8 1.8-3.8 1.8L20 35l-3.2-13.2-3.8-1.8 3.8-1.8z"/>
+
+
+<path
+fill="#8A6A16"
+opacity=".55"
+d="M5 20l13.2-3.2 1.8-3.8 1.8 3.8L35 20l-13.2 3.2-1.8 3.8-1.8-3.8z"/>
+
+
+<circle
+cx="20"
+cy="20"
+r="2"
+fill="#4A3A10"/>
+
+
+</symbol>
+
+
+
+<symbol
+id="icon-compass-star"
+viewBox="0 0 40 40">
+
+
+<path
+fill="#c9a227"
+stroke="#2b1b12"
+stroke-width="1"
+stroke-linejoin="round"
+d="M20.0 2.0 L21.5 16.3 L27.1 12.9 L23.7 18.5 L38.0 20.0 L23.7 21.5 L27.1 27.1 L21.5 23.7 L20.0 38.0 L18.5 23.7 L12.9 27.1 L16.3 21.5 L2.0 20.0 L16.3 18.5 L12.9 12.9 L18.5 16.3 Z"/>
+
+
+</symbol>
+
+
+
+
+</defs>
+
+
+</svg>
+
+
+
+
+
+
+
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script src="app.js"></script>
+
+
+</body>
+
+
+</html>
