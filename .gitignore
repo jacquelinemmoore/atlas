@@ -1,4 +1,4 @@
 .DS_Store
 node_modules/
 *.log
-/data/sites.json
+data/sites.json
