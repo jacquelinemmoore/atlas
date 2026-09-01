@@ -144,10 +144,27 @@ hidden>
 
 
 
-<main id="map"></main>
+<div id="view-area">
 
-<div id="list-view" hidden>
-  <div id="list-view-content"></div>
+  <div id="map-legend" class="map-legend">
+    <button type="button" class="legend-item" data-status="visited">
+      <span class="legend-icon" id="legend-icon-visited"></span>
+      Visited
+    </button>
+    <button type="button" class="legend-item" data-status="wantToVisit">
+      <svg class="legend-icon" viewBox="0 0 40 40">
+        <use href="#icon-compass-star"></use>
+      </svg>
+      Want to Visit
+    </button>
+  </div>
+
+  <main id="map"></main>
+
+  <div id="list-view" hidden>
+    <div id="list-view-content"></div>
+  </div>
+
 </div>
 
 

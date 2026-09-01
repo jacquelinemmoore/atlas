@@ -432,6 +432,14 @@ body {
 
 .map-legend {
 
+  position:absolute;
+
+  top:1rem;
+
+  left:1rem;
+
+  z-index:900;
+
   display:flex;
 
   flex-direction:column;
@@ -457,6 +465,22 @@ body {
 
 
 
+/* =========================================================
+   View area (holds map + list view, positions the legend)
+   ========================================================= */
+
+
+#view-area {
+
+  position:relative;
+
+  flex:1;
+
+  display:flex;
+
+  min-height:0;
+
+}
 
 
 
@@ -498,7 +522,7 @@ body {
 
   background:var(--parchment);
 
-  padding:1.5rem 1.25rem 3rem;
+  padding:5.5rem 1.25rem 3rem;
 
 }
 
@@ -1452,13 +1476,21 @@ textarea::placeholder {
 
   display:flex;
 
-  justify-content:space-between;
+  justify-content:flex-end;
 
   align-items:center;
 
   gap:.5rem;
 
   margin-top:1.25rem;
+
+}
+
+
+
+#delete-pin-btn {
+
+  margin-right:auto;
 
 }
 

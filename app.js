@@ -22,6 +22,14 @@ let sites = [];
 let editingSiteId = null;
 let pendingSite = null;
 
+// Wikipedia enrichment happens asynchronously after the modal is already
+// open and interactive. These track whether the user has started editing
+// a field themselves in that window, so the fetch result never silently
+// overwrites something they've already typed.
+let userEditedAbstract = false;
+let userEditedStops = false;
+let userUploadedImage = false;
+
 // Legend acts as a filter: unchecking a status hides those pins from the map.
 const visibleStatuses = {
   visited:true,
@@ -57,55 +65,26 @@ const map = L.map("map", {
 L.control.zoom({ position:"bottomleft" }).addTo(map);
 
 
-const LegendControl = L.Control.extend({
+const mapLegendEl =
+  document.getElementById("map-legend");
 
-  options:{ position:"topleft" },
+mapLegendEl.querySelectorAll(".legend-item").forEach(btn => {
 
-  onAdd:function(){
+  btn.addEventListener("click", () => {
 
-    const div =
-      L.DomUtil.create("div","map-legend");
+    const status = btn.dataset.status;
+    visibleStatuses[status] = !visibleStatuses[status];
 
-    div.innerHTML = `
-      <button type="button" class="legend-item" data-status="visited">
-        <span class="legend-icon" id="legend-icon-visited"></span>
-        Visited
-      </button>
-      <button type="button" class="legend-item" data-status="wantToVisit">
-        <svg class="legend-icon" viewBox="0 0 40 40">
-          <use href="#icon-compass-star"></use>
-        </svg>
-        Want to visit
-      </button>
-    `;
+    btn.classList.toggle(
+      "legend-item-inactive",
+      !visibleStatuses[status]
+    );
 
-    L.DomEvent.disableClickPropagation(div);
+    refreshView();
 
-    div.querySelectorAll(".legend-item").forEach(btn => {
-
-      btn.addEventListener("click", () => {
-
-        const status = btn.dataset.status;
-        visibleStatuses[status] = !visibleStatuses[status];
-
-        btn.classList.toggle(
-          "legend-item-inactive",
-          !visibleStatuses[status]
-        );
-
-        refreshView();
-
-      });
-
-    });
-
-    return div;
-
-  }
+  });
 
 });
-
-new LegendControl().addTo(map);
 
 
 
@@ -889,6 +868,11 @@ function openEditor(siteId=null){
     siteId;
 
 
+  userEditedAbstract = false;
+  userEditedStops = false;
+  userUploadedImage = false;
+
+
 
   pendingSite =
     siteId
@@ -916,6 +900,51 @@ function openEditor(siteId=null){
 
 
 
+
+
+// Applies Wikipedia enrichment results (called after an async fetch, once
+// the editor is already open) without disrupting anything the user has
+// started editing in the meantime — unlike populateEditor(), this never
+// forces a field out of active edit mode or overwrites a touched value.
+function applyWikipediaEnrichment(wiki){
+
+  if(!pendingSite)
+    return;
+
+
+  if(!userEditedAbstract){
+
+    pendingSite.abstract =
+      firstSentence(wiki.extract || "");
+
+    if(editorAbstract.hidden)
+      renderAbstractDisplay();
+
+  }
+
+
+  if(!userUploadedImage){
+
+    pendingSite.imageUrl =
+      wiki.imageUrl || "";
+
+    editorImage.src =
+      pendingSite.imageUrl ||
+      placeholderImage();
+
+    editorImage.style.objectPosition =
+      pendingSite.imagePosition;
+
+  }
+
+
+  if(!userEditedStops && editorStops.hidden){
+
+    renderStopsDisplay();
+
+  }
+
+}
 
 
 function populateEditor(){
@@ -991,6 +1020,20 @@ function populateEditor(){
 
   renderVisitHistory();
 
+
+  // Always start blank — otherwise a date typed but not logged (modal
+  // closed without clicking Log Visit) would linger into the next open.
+  if(logVisitDateInput)
+    logVisitDateInput.value = "";
+
+
+  // No pin exists yet for a site that hasn't been saved for the first time.
+  const deleteBtn =
+    document.getElementById("delete-pin-btn");
+
+  if(deleteBtn)
+    deleteBtn.hidden = !editingSiteId;
+
 }
 
 
@@ -1055,6 +1098,8 @@ function renderStopsDisplay(){
 
 function enterAbstractEdit(){
 
+  userEditedAbstract = true;
+
   editorAbstractDisplay.hidden = true;
   editorAbstract.hidden = false;
   editorAbstract.value = pendingSite?.abstract || "";
@@ -1079,6 +1124,8 @@ function exitAbstractEdit(){
 
 
 function enterStopsEdit(){
+
+  userEditedStops = true;
 
   editorStopsDisplay.hidden = true;
   editorStops.hidden = false;
@@ -1529,19 +1576,24 @@ document
 
 
 
+function dismissEditor(){
+
+  if(pendingSite){
+    saveEditor(); // saves and closes
+  }
+  else{
+    closeEditor();
+  }
+
+}
+
+
 editorModal.addEventListener(
   "click",
   e => {
 
     if(e.target === editorModal){
-
-      if(pendingSite){
-        saveEditor(); // saves and closes
-      }
-      else{
-        closeEditor();
-      }
-
+      dismissEditor();
     }
 
   }
@@ -1560,7 +1612,7 @@ document.addEventListener(
       !editorModal.hidden
     ){
 
-      closeEditor();
+      dismissEditor();
 
     }
 
@@ -1654,6 +1706,8 @@ editorImageUpload
       () => {
 
 
+        userUploadedImage = true;
+
         pendingSite.imageUrl =
           reader.result;
 
@@ -1699,6 +1753,28 @@ const searchResults =
   document.getElementById(
     "search-results"
   );
+
+
+
+document.addEventListener("click", e => {
+
+  if(searchResults.hidden)
+    return;
+
+  if(!searchForm.contains(e.target))
+    searchResults.hidden = true;
+
+});
+
+
+document.addEventListener("keydown", e => {
+
+  if(e.key === "Escape" && !searchResults.hidden){
+    searchResults.hidden = true;
+    searchInput.blur();
+  }
+
+});
 
 
 
@@ -1852,8 +1928,11 @@ async function chooseSearchResult(result){
     result.address || {};
 
 
+  // Use the name the user actually saw and clicked in the dropdown —
+  // not OSM's local-language name tag, which can silently differ (e.g.
+  // "Colosseo" vs "Colosseum") and send the Wikipedia search down the
+  // wrong path entirely.
   const name =
-    result.namedetails?.name ||
     result.display_name.split(",")[0];
 
 
@@ -1927,6 +2006,10 @@ async function chooseSearchResult(result){
 
   editingSiteId=null;
 
+  userEditedAbstract = false;
+  userEditedStops = false;
+  userUploadedImage = false;
+
 
   populateEditor();
 
@@ -1939,11 +2022,20 @@ async function chooseSearchResult(result){
     searchCard.scrollTop = 0;
 
 
+  // Visible signal that something is still loading, so the blank
+  // placeholder doesn't get mistaken for "nothing found."
+  if(!userEditedAbstract && editorAbstract.hidden){
+    editorAbstractDisplay.textContent = "Fetching details from Wikipedia\u2026";
+    editorAbstractDisplay.classList.add("placeholder-text");
+  }
+
 
   const wiki =
     await fetchWikipediaSummary(
       pendingSite.name,
-      pendingSite.city
+      pendingSite.city,
+      pendingSite.lat,
+      pendingSite.lng
     );
 
 
@@ -1953,25 +2045,7 @@ async function chooseSearchResult(result){
 
 
 
-  pendingSite.abstract =
-    firstSentence(
-      wiki.extract || ""
-    );
-
-
-
-  pendingSite.imageUrl =
-    wiki.imageUrl || "";
-
-
-
-  // Always empty after enrichment
-  pendingSite.selectedStops=[];
-
-
-
-  populateEditor();
-
+  applyWikipediaEnrichment(wiki);
 
 }
 
@@ -1986,7 +2060,54 @@ async function chooseSearchResult(result){
    ========================================================= */
 
 
-async function fetchWikipediaSummary(name,city){
+// Reject a Wikipedia match only if it's implausibly far from where the
+// site was actually geocoded to — no category exclusions, since a
+// transit hub can itself be exactly what someone means to add (e.g.
+// Grand Central Station).
+function haversineKm(lat1,lng1,lat2,lng2){
+
+  const R = 6371;
+  const dLat = (lat2-lat1) * Math.PI/180;
+  const dLng = (lng2-lng1) * Math.PI/180;
+
+  const a =
+    Math.sin(dLat/2)**2 +
+    Math.cos(lat1*Math.PI/180) *
+    Math.cos(lat2*Math.PI/180) *
+    Math.sin(dLng/2)**2;
+
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+}
+
+function isLikelyWrongMatch(summary, targetLat, targetLng){
+
+  if(
+    summary.coordinates &&
+    targetLat != null &&
+    targetLng != null
+  ){
+
+    const distanceKm =
+      haversineKm(
+        summary.coordinates.lat,
+        summary.coordinates.lon,
+        targetLat,
+        targetLng
+      );
+
+    if(distanceKm > 5)
+      return true;
+
+  }
+
+
+  return false;
+
+}
+
+
+async function fetchWikipediaSummary(name,city,lat,lng){
 
   try{
 
@@ -2023,13 +2144,13 @@ async function fetchWikipediaSummary(name,city){
         await fetchWikipediaTitle(title);
 
 
-
       if(
         summary?.extract &&
         title.toLowerCase()
         .includes(
           name.toLowerCase()
-        )
+        ) &&
+        !isLikelyWrongMatch(summary, lat, lng)
       ){
 
         return summary;
@@ -2046,9 +2167,12 @@ async function fetchWikipediaSummary(name,city){
         await fetchWikipediaTitle(title);
 
 
-
-      if(summary?.extract)
+      if(
+        summary?.extract &&
+        !isLikelyWrongMatch(summary, lat, lng)
+      ){
         return summary;
+      }
 
     }
 
@@ -2094,6 +2218,18 @@ async function fetchWikipediaTitle(title){
 
       extract:
         data.extract || "",
+
+
+      description:
+        data.description || "",
+
+
+      type:
+        data.type || "",
+
+
+      coordinates:
+        data.coordinates || null,
 
 
       imageUrl:
@@ -2433,15 +2569,49 @@ return new Date()
 
 
 
+const SENTENCE_ABBREVIATIONS = new Set([
+  "st","mt","dr","mr","mrs","ms","jr","sr","vs","etc",
+  "no","ave","blvd","ft","ste","rev","prof","gen","col",
+  "capt","sgt","co","corp","inc","ltd","e.g","i.e"
+]);
+
+function endsWithAbbreviation(fragment){
+
+  const match =
+    fragment.match(/([A-Za-z]+)\.$/);
+
+  if(!match)
+    return false;
+
+  return SENTENCE_ABBREVIATIONS.has(
+    match[1].toLowerCase()
+  );
+
+}
+
+
 function firstSentence(text){
 
 if(!text)
 return "";
 
-return text
-.replace(/\s+/g," ")
-.split(/(?<=[.!?])\s+/)[0]
-.trim();
+const parts =
+  text
+  .replace(/\s+/g," ")
+  .trim()
+  .split(/(?<=[.!?])\s+/);
+
+let result = parts[0] || "";
+let i = 1;
+
+// Keep merging fragments if the "sentence" so far actually ended on
+// an abbreviation (e.g. "St.") rather than a real sentence boundary.
+while(i < parts.length && endsWithAbbreviation(result)){
+  result += " " + parts[i];
+  i++;
+}
+
+return result.trim();
 
 }
 
