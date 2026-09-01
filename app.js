@@ -482,8 +482,14 @@ const listViewEl =
 const listViewContent =
   document.getElementById("list-view-content");
 
+const listFilterInput =
+  document.getElementById("list-filter-input");
+
 const viewToggleBtn =
   document.getElementById("view-toggle-btn");
+
+
+let listFilterQuery = "";
 
 
 function renderListView(){
@@ -492,16 +498,33 @@ function renderListView(){
     return;
 
 
+  const query =
+    listFilterQuery.trim().toLowerCase();
+
+
   const visibleSites =
-    sites.filter(
-      site => visibleStatuses[site.status]
-    );
+    sites.filter(site => {
+
+      if(!visibleStatuses[site.status])
+        return false;
+
+      if(!query)
+        return true;
+
+      return (
+        site.name.toLowerCase().includes(query) ||
+        (site.city || "").toLowerCase().includes(query)
+      );
+
+    });
 
 
   if(visibleSites.length === 0){
 
     listViewContent.innerHTML =
-      `<p class="list-empty-state">No sites match the current filters.</p>`;
+      query
+      ? `<p class="list-empty-state">No pins match "${escapeHtml(listFilterQuery.trim())}".</p>`
+      : `<p class="list-empty-state">No sites match the current filters.</p>`;
 
     return;
 
@@ -588,6 +611,16 @@ function renderListView(){
   });
 
 }
+
+
+listFilterInput?.addEventListener("input", () => {
+
+  listFilterQuery = listFilterInput.value;
+
+  if(currentView === "list")
+    renderListView();
+
+});
 
 
 viewToggleBtn?.addEventListener("click", () => {
@@ -1576,6 +1609,98 @@ document
 
 
 
+/* =========================================================
+   Themed confirm/alert dialog (replaces native confirm()/alert())
+   ========================================================= */
+
+
+const confirmDialog =
+  document.getElementById("confirm-dialog");
+
+const confirmDialogMessage =
+  document.getElementById("confirm-dialog-message");
+
+const confirmDialogCancelBtn =
+  document.getElementById("confirm-dialog-cancel");
+
+const confirmDialogOkBtn =
+  document.getElementById("confirm-dialog-ok");
+
+
+// Returns a Promise<boolean> — true if confirmed/acknowledged, false if
+// cancelled. Pass cancelText:null for a single-button "alert" style.
+function showDialog({
+  message,
+  confirmText = "OK",
+  cancelText = "Cancel",
+  danger = false
+}){
+
+  return new Promise(resolve => {
+
+    confirmDialogMessage.textContent = message;
+
+    confirmDialogOkBtn.textContent = confirmText;
+    confirmDialogOkBtn.classList.toggle("danger-btn", danger);
+
+    confirmDialogCancelBtn.hidden = !cancelText;
+    if(cancelText)
+      confirmDialogCancelBtn.textContent = cancelText;
+
+    confirmDialog.hidden = false;
+    confirmDialogOkBtn.focus();
+
+
+    function cleanup(result){
+      confirmDialog.hidden = true;
+      confirmDialogOkBtn.removeEventListener("click", onOk);
+      confirmDialogCancelBtn.removeEventListener("click", onCancel);
+      confirmDialog.removeEventListener("click", onBackdrop);
+      document.removeEventListener("keydown", onKeydown, true);
+      resolve(result);
+    }
+
+    function onOk(){ cleanup(true); }
+    function onCancel(){ cleanup(false); }
+
+    function onBackdrop(e){
+      if(e.target === confirmDialog) cleanup(false);
+    }
+
+    function onKeydown(e){
+      if(e.key === "Escape"){
+        e.stopPropagation();
+        cleanup(false);
+      }
+      if(e.key === "Enter"){
+        e.stopPropagation();
+        cleanup(true);
+      }
+    }
+
+    confirmDialogOkBtn.addEventListener("click", onOk);
+    confirmDialogCancelBtn.addEventListener("click", onCancel);
+    confirmDialog.addEventListener("click", onBackdrop);
+    // Capture phase so this runs before the editor modal's own
+    // document-level Escape handler.
+    document.addEventListener("keydown", onKeydown, true);
+
+  });
+
+}
+
+
+function showConfirm(message, opts = {}){
+  return showDialog({ message, ...opts });
+}
+
+
+function showAlert(message){
+  return showDialog({ message, cancelText: null });
+}
+
+
+
 function dismissEditor(){
 
   if(pendingSite){
@@ -1609,7 +1734,8 @@ document.addEventListener(
 
     if(
       e.key === "Escape" &&
-      !editorModal.hidden
+      !editorModal.hidden &&
+      confirmDialog.hidden
     ){
 
       dismissEditor();
@@ -1636,7 +1762,7 @@ document
   )
   ?.addEventListener(
     "click",
-    () => {
+    async () => {
 
 
       if(!editingSiteId)
@@ -1644,11 +1770,13 @@ document
 
 
 
-      if(
-        !confirm(
-          "Remove this pin?"
-        )
-      )
+      const confirmed =
+        await showConfirm(
+          "Remove this pin? This can't be undone.",
+          { confirmText:"Remove", danger:true }
+        );
+
+      if(!confirmed)
         return;
 
 
@@ -1952,10 +2080,12 @@ async function chooseSearchResult(result){
   if(duplicate){
 
     const openExisting =
-      confirm(
-        `You already have a pin for "${duplicate.name}" near here.\n\n` +
-        `OK \u2014 open that existing pin\n` +
-        `Cancel \u2014 add a new pin here anyway`
+      await showConfirm(
+        `You already have a pin for "${duplicate.name}" near here.`,
+        {
+          confirmText:"Open Existing Pin",
+          cancelText:"Add New Pin Anyway"
+        }
       );
 
     if(openExisting){
@@ -2535,8 +2665,8 @@ refreshView();
 }
 catch{
 
-alert(
-"Unable to import Atlas file."
+await showAlert(
+"Unable to import Atlas file. Make sure it's a JSON file exported from Atlas."
 );
 
 }
