@@ -394,16 +394,19 @@ function renderPins(){
       );
 
     const names =
-      group.map(g => escapeHtml(g.site.name)).join(", ");
+      group.map(g => `<li>${escapeHtml(g.site.name)}</li>`).join("");
+
+    const estimatedHeight = 60 + group.length * 32;
+    const estimatedWidth = 260;
 
     marker.bindTooltip(
       `
-      <p class="tooltip-name">${group.length} sites here</p>
-      <p class="tooltip-summary">${names}</p>
+      <p class="tooltip-name">${group.length} pins here</p>
+      <ul class="tooltip-list">${names}</ul>
       `,
       {
         direction:
-          pickCardDirection(avgLat, avgLng, 220, 140),
+          pickCardDirection(avgLat, avgLng, estimatedWidth, estimatedHeight),
         sticky:false,
         className:"cluster-tooltip",
         offset:[0,-8]
@@ -1861,7 +1864,10 @@ editorImageUpload
 
 
 /* =========================================================
-   Search
+   Search - FIXED for museum complexes like Musei Reali Torino
+   - Wikipedia entity-first (like Google)
+   - Photon for tourism=museum ranking
+   - Nominatim fallback with IT bias + re-ranking
    ========================================================= */
 
 
@@ -1907,7 +1913,6 @@ document.addEventListener("keydown", e => {
 
 
 
-
 searchForm.addEventListener(
   "submit",
   async e => {
@@ -1937,27 +1942,16 @@ searchForm.addEventListener(
     try{
 
 
-      const response =
-        await fetch(
-          `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&namedetails=1&limit=6&q=${encodeURIComponent(query)}`
-        );
-
-
-
-      const results =
-        await response.json();
-
-
+      const results = await smartGeocode(query);
 
       renderSearchResults(results);
 
 
     }
-    catch{
-
-
+    catch(err){
+      console.error(err);
       searchResults.innerHTML =
-        "<button disabled>Search failed</button>";
+        "<button disabled>Search failed — try Italian name</button>";
 
     }
 
@@ -1967,7 +1961,104 @@ searchForm.addEventListener(
 
 
 
+// Smart geocoder that fixes Musei Reali Torino
+async function smartGeocode(query){
+  // Stage 1: Wikipedia/Wikidata entity search (Google-style)
+  // This solves "Musei Reali di Torino" which is a museum SITE, not a single OSM node
+  try {
+    const wikiSearchRes = await fetch(
+      `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&origin=*&srlimit=3`
+    );
+    const wikiSearch = await wikiSearchRes.json();
+    const bestTitle = wikiSearch.query?.search?.[0]?.title;
 
+    if(bestTitle){
+      const geoRes = await fetch(
+        `https://en.wikipedia.org/w/api.php?action=query&prop=coordinates&titles=${encodeURIComponent(bestTitle)}&format=json&origin=*`
+      );
+      const geo = await geoRes.json();
+      const pages = Object.values(geo.query.pages || {});
+      const coords = pages[0]?.coordinates?.[0];
+      if(coords){
+        // We have a Wikipedia entity with coordinates - return it as top result
+        return [{
+          display_name: `${bestTitle} — from Wikipedia`,
+          lat: coords.lat.toString(),
+          lon: coords.lon.toString(),
+          importance: 1.5,
+          type: 'museum',
+          isWikipedia: true,
+          address: {}
+        }];
+      }
+    }
+  } catch(err){
+    console.warn('Wikipedia geocode stage failed', err);
+  }
+
+  // Stage 2: Photon (komoot) - much better for tourism=museum, historic, etc.
+  try {
+    const photonRes = await fetch(
+      `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=10&lang=it&lat=45.0703&lon=7.6869`
+    );
+    const photon = await photonRes.json();
+    if(photon.features && photon.features.length){
+      const mapped = photon.features.map(f => ({
+        display_name: [f.properties.name, f.properties.street, f.properties.city, f.properties.country].filter(Boolean).join(', '),
+        lat: f.geometry.coordinates[1].toString(),
+        lon: f.geometry.coordinates[0].toString(),
+        importance: f.properties.osm_type === 'R' ? 0.3 : 0,
+        type: f.properties.osm_value || '',
+        osm_key: f.properties.osm_key || '',
+        osm_value: f.properties.osm_value || '',
+        extratags: { tourism: f.properties.osm_key === 'tourism' ? f.properties.osm_value : undefined },
+        address: { city: f.properties.city, country: f.properties.country },
+        _rawImportance: 0
+      }));
+
+      // Re-rank: boost museums, historic sites
+      const ranked = mapped
+        .map(r => {
+          let score = r.importance || 0;
+          if(r.osm_value === 'museum' || r.type === 'museum') score += 1.0;
+          if(r.osm_key === 'tourism') score += 0.6;
+          if(r.osm_key === 'historic') score += 0.4;
+          return { ...r, _score: score };
+        })
+        .sort((a,b) => b._score - a._score);
+
+      // If we have a strong museum hit, return it
+      if(ranked[0]._score > 0.5) return ranked.slice(0,6);
+    }
+  } catch(err){
+    console.warn('Photon stage failed', err);
+  }
+
+  // Stage 3: Nominatim fallback with IT bias and proper extratags
+  const response =
+    await fetch(
+      `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&namedetails=1&extratags=1&limit=10&countrycodes=it&accept-language=it&q=${encodeURIComponent(query)}`
+    );
+
+  const results =
+    await response.json();
+
+  // Final re-ranking to fix Venaria vs Torino bug
+  return results
+    .map(r => {
+      let score = r.importance || 0;
+      if(r.extratags?.tourism === 'museum') score += 0.8;
+      if(r.extratags?.historic) score += 0.4;
+      if(r.type === 'tourism' || r.type === 'historic') score += 0.3;
+      // Penalize Venaria Reale when query explicitly says Torino
+      if(query.toLowerCase().includes('torino') && r.display_name.toLowerCase().includes('venaria')) score -= 0.7;
+      // Boost if display_name contains Torino for Torino queries
+      if(query.toLowerCase().includes('torino') && r.display_name.toLowerCase().includes('torino')) score += 0.2;
+      return { ...r, _score: score };
+    })
+    .sort((a,b) => b._score - a._score)
+    .slice(0,6);
+}
 
 
 function renderSearchResults(results){
@@ -1978,7 +2069,7 @@ function renderSearchResults(results){
   if(!results.length){
 
     searchResults.innerHTML =
-      "<button disabled>No results</button>";
+      "<button disabled>No results — try the Italian name, e.g. 'Palazzo Reale Torino'</button>";
 
     return;
 
@@ -1994,10 +2085,10 @@ function renderSearchResults(results){
         "button"
       );
 
-
-    button.textContent =
-      result.display_name;
-
+    button.className = "search-result-btn";
+    const isMuseum = result.type === 'museum' || result.osm_key === 'tourism' || result.extratags?.tourism === 'museum' || result.isWikipedia;
+    const name = result.display_name.split(',')[0];
+    button.innerHTML = `<span class="result-name">${escapeHtml(name)} ${isMuseum ? '🏛️' : ''}</span><span class="result-sub">${escapeHtml(result.display_name)}</span>`;
 
 
     button.onclick =
@@ -2014,8 +2105,6 @@ function renderSearchResults(results){
   });
 
 }
-
-
 
 
 

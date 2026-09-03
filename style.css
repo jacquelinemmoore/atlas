@@ -982,11 +982,11 @@ body {
    it down to an unreadably narrow column. */
 .leaflet-tooltip.cluster-tooltip {
 
-  width:220px;
+  width:300px;
 
-  max-width:220px;
+  max-width:300px;
 
-  padding:.75rem .9rem;
+  padding:1rem 1.1rem;
 
 }
 
@@ -1026,6 +1026,19 @@ body {
 
   line-height:1.45;
 
+}
+
+.tooltip-list {
+  margin: 8px 0 0 18px;
+  padding: 0;
+  font-size: 1.15rem;
+  line-height: 1.4;
+  list-style: disc;
+}
+
+.tooltip-list li {
+  margin: 4px 0;
+  font-size: 1.15rem;
 }
 
 
@@ -1116,8 +1129,7 @@ body {
 
 }
 
-
-
+/* FIX: duplicate modal 
 .danger-btn {
 
   background:var(--burgundy) !important;
@@ -1684,3 +1696,33 @@ textarea::placeholder {
   }
 
 }
+
+
+/* =========================================================
+   Fix: Confirm dialog buttons — centered, narrower, uniform
+   ========================================================= */
+#confirm-dialog .panel-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+#confirm-dialog button {
+  flex: 1 1 0;
+  min-width: 110px;
+  max-width: 170px;
+  padding: 7px 10px;
+
+  white-space: normal;
+  overflow-wrap: break-word;
+  line-height: 1.3;
+  height: auto;
+  min-height: 40px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
