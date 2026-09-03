@@ -538,6 +538,42 @@ body {
 
 
 
+#list-view-filter-row {
+
+  max-width:640px;
+
+  margin:0 auto 1.25rem;
+
+}
+
+
+
+#list-filter-input {
+
+  width:100%;
+
+  height:2.3rem;
+
+  padding:0 .75rem;
+
+  font-family:var(--body-font);
+
+  font-size:1rem;
+
+  font-style:italic;
+
+  background:var(--paper);
+
+  color:var(--ink);
+
+  border:1.5px solid var(--ink);
+
+  box-sizing:border-box;
+
+}
+
+
+
 .list-country-heading {
 
   margin:1.75rem 0 .6rem;
@@ -946,11 +982,11 @@ body {
    it down to an unreadably narrow column. */
 .leaflet-tooltip.cluster-tooltip {
 
-  width:220px;
+  width:300px;
 
-  max-width:220px;
+  max-width:300px;
 
-  padding:.75rem .9rem;
+  padding:1rem 1.1rem;
 
 }
 
@@ -990,6 +1026,19 @@ body {
 
   line-height:1.45;
 
+}
+
+.tooltip-list {
+  margin: 8px 0 0 18px;
+  padding: 0;
+  font-size: 1.15rem;
+  line-height: 1.4;
+  list-style: disc;
+}
+
+.tooltip-list li {
+  margin: 4px 0;
+  font-size: 1.15rem;
 }
 
 
@@ -1053,6 +1102,49 @@ body {
 
   box-shadow:
     5px 5px 0 rgba(43,27,18,.2);
+
+}
+
+
+
+.confirm-dialog-card {
+
+  max-width:380px;
+
+}
+
+
+
+.confirm-dialog-message {
+
+  margin:.25rem 0 1.5rem;
+
+  font-family:var(--body-font);
+
+  font-size:1.05rem;
+
+  line-height:1.5;
+
+  white-space:pre-line;
+
+}
+
+/* FIX: duplicate modal 
+.danger-btn {
+
+  background:var(--burgundy) !important;
+
+  border-color:var(--burgundy) !important;
+
+}
+
+
+
+.danger-btn:hover {
+
+  background:#4e1620 !important;
+
+  border-color:#4e1620 !important;
 
 }
 
@@ -1292,7 +1384,16 @@ textarea::placeholder {
 
   background:rgba(43,27,18,.05);
 
-  outline:none;
+}
+
+
+
+.inline-editable-text:focus-visible,
+.inline-editable-list:focus-visible {
+
+  outline:2px solid var(--ink);
+
+  outline-offset:1px;
 
 }
 
@@ -1595,3 +1696,33 @@ textarea::placeholder {
   }
 
 }
+
+
+/* =========================================================
+   Fix: Confirm dialog buttons — centered, narrower, uniform
+   ========================================================= */
+#confirm-dialog .panel-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+#confirm-dialog button {
+  flex: 1 1 0;
+  min-width: 110px;
+  max-width: 170px;
+  padding: 7px 10px;
+
+  white-space: normal;
+  overflow-wrap: break-word;
+  line-height: 1.3;
+  height: auto;
+  min-height: 40px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+

@@ -394,16 +394,19 @@ function renderPins(){
       );
 
     const names =
-      group.map(g => escapeHtml(g.site.name)).join(", ");
+      group.map(g => `<li>${escapeHtml(g.site.name)}</li>`).join("");
+
+    const estimatedHeight = 60 + group.length * 32;
+    const estimatedWidth = 260;
 
     marker.bindTooltip(
       `
-      <p class="tooltip-name">${group.length} sites here</p>
-      <p class="tooltip-summary">${names}</p>
+      <p class="tooltip-name">${group.length} pins here</p>
+      <ul class="tooltip-list">${names}</ul>
       `,
       {
         direction:
-          pickCardDirection(avgLat, avgLng, 220, 140),
+          pickCardDirection(avgLat, avgLng, estimatedWidth, estimatedHeight),
         sticky:false,
         className:"cluster-tooltip",
         offset:[0,-8]
@@ -482,8 +485,14 @@ const listViewEl =
 const listViewContent =
   document.getElementById("list-view-content");
 
+const listFilterInput =
+  document.getElementById("list-filter-input");
+
 const viewToggleBtn =
   document.getElementById("view-toggle-btn");
+
+
+let listFilterQuery = "";
 
 
 function renderListView(){
@@ -492,16 +501,33 @@ function renderListView(){
     return;
 
 
+  const query =
+    listFilterQuery.trim().toLowerCase();
+
+
   const visibleSites =
-    sites.filter(
-      site => visibleStatuses[site.status]
-    );
+    sites.filter(site => {
+
+      if(!visibleStatuses[site.status])
+        return false;
+
+      if(!query)
+        return true;
+
+      return (
+        site.name.toLowerCase().includes(query) ||
+        (site.city || "").toLowerCase().includes(query)
+      );
+
+    });
 
 
   if(visibleSites.length === 0){
 
     listViewContent.innerHTML =
-      `<p class="list-empty-state">No sites match the current filters.</p>`;
+      query
+      ? `<p class="list-empty-state">No pins match "${escapeHtml(listFilterQuery.trim())}".</p>`
+      : `<p class="list-empty-state">No sites match the current filters.</p>`;
 
     return;
 
@@ -588,6 +614,16 @@ function renderListView(){
   });
 
 }
+
+
+listFilterInput?.addEventListener("input", () => {
+
+  listFilterQuery = listFilterInput.value;
+
+  if(currentView === "list")
+    renderListView();
+
+});
 
 
 viewToggleBtn?.addEventListener("click", () => {
@@ -1576,6 +1612,98 @@ document
 
 
 
+/* =========================================================
+   Themed confirm/alert dialog (replaces native confirm()/alert())
+   ========================================================= */
+
+
+const confirmDialog =
+  document.getElementById("confirm-dialog");
+
+const confirmDialogMessage =
+  document.getElementById("confirm-dialog-message");
+
+const confirmDialogCancelBtn =
+  document.getElementById("confirm-dialog-cancel");
+
+const confirmDialogOkBtn =
+  document.getElementById("confirm-dialog-ok");
+
+
+// Returns a Promise<boolean> — true if confirmed/acknowledged, false if
+// cancelled. Pass cancelText:null for a single-button "alert" style.
+function showDialog({
+  message,
+  confirmText = "OK",
+  cancelText = "Cancel",
+  danger = false
+}){
+
+  return new Promise(resolve => {
+
+    confirmDialogMessage.textContent = message;
+
+    confirmDialogOkBtn.textContent = confirmText;
+    confirmDialogOkBtn.classList.toggle("danger-btn", danger);
+
+    confirmDialogCancelBtn.hidden = !cancelText;
+    if(cancelText)
+      confirmDialogCancelBtn.textContent = cancelText;
+
+    confirmDialog.hidden = false;
+    confirmDialogOkBtn.focus();
+
+
+    function cleanup(result){
+      confirmDialog.hidden = true;
+      confirmDialogOkBtn.removeEventListener("click", onOk);
+      confirmDialogCancelBtn.removeEventListener("click", onCancel);
+      confirmDialog.removeEventListener("click", onBackdrop);
+      document.removeEventListener("keydown", onKeydown, true);
+      resolve(result);
+    }
+
+    function onOk(){ cleanup(true); }
+    function onCancel(){ cleanup(false); }
+
+    function onBackdrop(e){
+      if(e.target === confirmDialog) cleanup(false);
+    }
+
+    function onKeydown(e){
+      if(e.key === "Escape"){
+        e.stopPropagation();
+        cleanup(false);
+      }
+      if(e.key === "Enter"){
+        e.stopPropagation();
+        cleanup(true);
+      }
+    }
+
+    confirmDialogOkBtn.addEventListener("click", onOk);
+    confirmDialogCancelBtn.addEventListener("click", onCancel);
+    confirmDialog.addEventListener("click", onBackdrop);
+    // Capture phase so this runs before the editor modal's own
+    // document-level Escape handler.
+    document.addEventListener("keydown", onKeydown, true);
+
+  });
+
+}
+
+
+function showConfirm(message, opts = {}){
+  return showDialog({ message, ...opts });
+}
+
+
+function showAlert(message){
+  return showDialog({ message, cancelText: null });
+}
+
+
+
 function dismissEditor(){
 
   if(pendingSite){
@@ -1609,7 +1737,8 @@ document.addEventListener(
 
     if(
       e.key === "Escape" &&
-      !editorModal.hidden
+      !editorModal.hidden &&
+      confirmDialog.hidden
     ){
 
       dismissEditor();
@@ -1636,7 +1765,7 @@ document
   )
   ?.addEventListener(
     "click",
-    () => {
+    async () => {
 
 
       if(!editingSiteId)
@@ -1644,11 +1773,13 @@ document
 
 
 
-      if(
-        !confirm(
-          "Remove this pin?"
-        )
-      )
+      const confirmed =
+        await showConfirm(
+          "Remove this pin? This can't be undone.",
+          { confirmText:"Remove", danger:true }
+        );
+
+      if(!confirmed)
         return;
 
 
@@ -1733,7 +1864,10 @@ editorImageUpload
 
 
 /* =========================================================
-   Search
+   Search - FIXED for museum complexes like Musei Reali Torino
+   - Wikipedia entity-first (like Google)
+   - Photon for tourism=museum ranking
+   - Nominatim fallback with IT bias + re-ranking
    ========================================================= */
 
 
@@ -1779,7 +1913,6 @@ document.addEventListener("keydown", e => {
 
 
 
-
 searchForm.addEventListener(
   "submit",
   async e => {
@@ -1809,27 +1942,16 @@ searchForm.addEventListener(
     try{
 
 
-      const response =
-        await fetch(
-          `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&namedetails=1&limit=6&q=${encodeURIComponent(query)}`
-        );
-
-
-
-      const results =
-        await response.json();
-
-
+      const results = await smartGeocode(query);
 
       renderSearchResults(results);
 
 
     }
-    catch{
-
-
+    catch(err){
+      console.error(err);
       searchResults.innerHTML =
-        "<button disabled>Search failed</button>";
+        "<button disabled>Search failed — try Italian name</button>";
 
     }
 
@@ -1839,7 +1961,104 @@ searchForm.addEventListener(
 
 
 
+// Smart geocoder that fixes Musei Reali Torino
+async function smartGeocode(query){
+  // Stage 1: Wikipedia/Wikidata entity search (Google-style)
+  // This solves "Musei Reali di Torino" which is a museum SITE, not a single OSM node
+  try {
+    const wikiSearchRes = await fetch(
+      `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&origin=*&srlimit=3`
+    );
+    const wikiSearch = await wikiSearchRes.json();
+    const bestTitle = wikiSearch.query?.search?.[0]?.title;
 
+    if(bestTitle){
+      const geoRes = await fetch(
+        `https://en.wikipedia.org/w/api.php?action=query&prop=coordinates&titles=${encodeURIComponent(bestTitle)}&format=json&origin=*`
+      );
+      const geo = await geoRes.json();
+      const pages = Object.values(geo.query.pages || {});
+      const coords = pages[0]?.coordinates?.[0];
+      if(coords){
+        // We have a Wikipedia entity with coordinates - return it as top result
+        return [{
+          display_name: `${bestTitle} — from Wikipedia`,
+          lat: coords.lat.toString(),
+          lon: coords.lon.toString(),
+          importance: 1.5,
+          type: 'museum',
+          isWikipedia: true,
+          address: {}
+        }];
+      }
+    }
+  } catch(err){
+    console.warn('Wikipedia geocode stage failed', err);
+  }
+
+  // Stage 2: Photon (komoot) - much better for tourism=museum, historic, etc.
+  try {
+    const photonRes = await fetch(
+      `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=10&lang=it&lat=45.0703&lon=7.6869`
+    );
+    const photon = await photonRes.json();
+    if(photon.features && photon.features.length){
+      const mapped = photon.features.map(f => ({
+        display_name: [f.properties.name, f.properties.street, f.properties.city, f.properties.country].filter(Boolean).join(', '),
+        lat: f.geometry.coordinates[1].toString(),
+        lon: f.geometry.coordinates[0].toString(),
+        importance: f.properties.osm_type === 'R' ? 0.3 : 0,
+        type: f.properties.osm_value || '',
+        osm_key: f.properties.osm_key || '',
+        osm_value: f.properties.osm_value || '',
+        extratags: { tourism: f.properties.osm_key === 'tourism' ? f.properties.osm_value : undefined },
+        address: { city: f.properties.city, country: f.properties.country },
+        _rawImportance: 0
+      }));
+
+      // Re-rank: boost museums, historic sites
+      const ranked = mapped
+        .map(r => {
+          let score = r.importance || 0;
+          if(r.osm_value === 'museum' || r.type === 'museum') score += 1.0;
+          if(r.osm_key === 'tourism') score += 0.6;
+          if(r.osm_key === 'historic') score += 0.4;
+          return { ...r, _score: score };
+        })
+        .sort((a,b) => b._score - a._score);
+
+      // If we have a strong museum hit, return it
+      if(ranked[0]._score > 0.5) return ranked.slice(0,6);
+    }
+  } catch(err){
+    console.warn('Photon stage failed', err);
+  }
+
+  // Stage 3: Nominatim fallback with IT bias and proper extratags
+  const response =
+    await fetch(
+      `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&namedetails=1&extratags=1&limit=10&countrycodes=it&accept-language=it&q=${encodeURIComponent(query)}`
+    );
+
+  const results =
+    await response.json();
+
+  // Final re-ranking to fix Venaria vs Torino bug
+  return results
+    .map(r => {
+      let score = r.importance || 0;
+      if(r.extratags?.tourism === 'museum') score += 0.8;
+      if(r.extratags?.historic) score += 0.4;
+      if(r.type === 'tourism' || r.type === 'historic') score += 0.3;
+      // Penalize Venaria Reale when query explicitly says Torino
+      if(query.toLowerCase().includes('torino') && r.display_name.toLowerCase().includes('venaria')) score -= 0.7;
+      // Boost if display_name contains Torino for Torino queries
+      if(query.toLowerCase().includes('torino') && r.display_name.toLowerCase().includes('torino')) score += 0.2;
+      return { ...r, _score: score };
+    })
+    .sort((a,b) => b._score - a._score)
+    .slice(0,6);
+}
 
 
 function renderSearchResults(results){
@@ -1850,7 +2069,7 @@ function renderSearchResults(results){
   if(!results.length){
 
     searchResults.innerHTML =
-      "<button disabled>No results</button>";
+      "<button disabled>No results — try the Italian name, e.g. 'Palazzo Reale Torino'</button>";
 
     return;
 
@@ -1866,10 +2085,10 @@ function renderSearchResults(results){
         "button"
       );
 
-
-    button.textContent =
-      result.display_name;
-
+    button.className = "search-result-btn";
+    const isMuseum = result.type === 'museum' || result.osm_key === 'tourism' || result.extratags?.tourism === 'museum' || result.isWikipedia;
+    const name = result.display_name.split(',')[0];
+    button.innerHTML = `<span class="result-name">${escapeHtml(name)} ${isMuseum ? '🏛️' : ''}</span><span class="result-sub">${escapeHtml(result.display_name)}</span>`;
 
 
     button.onclick =
@@ -1886,8 +2105,6 @@ function renderSearchResults(results){
   });
 
 }
-
-
 
 
 
@@ -1952,10 +2169,12 @@ async function chooseSearchResult(result){
   if(duplicate){
 
     const openExisting =
-      confirm(
-        `You already have a pin for "${duplicate.name}" near here.\n\n` +
-        `OK \u2014 open that existing pin\n` +
-        `Cancel \u2014 add a new pin here anyway`
+      await showConfirm(
+        `You already have a pin for "${duplicate.name}" near here.`,
+        {
+          confirmText:"Open Existing Pin",
+          cancelText:"Add New Pin Anyway"
+        }
       );
 
     if(openExisting){
@@ -2535,8 +2754,8 @@ refreshView();
 }
 catch{
 
-alert(
-"Unable to import Atlas file."
+await showAlert(
+"Unable to import Atlas file. Make sure it's a JSON file exported from Atlas."
 );
 
 }
@@ -2710,5 +2929,5 @@ document
 
 loadSites().then(loaded => {
   sites = loaded;
-  renderPins();
+  refreshView();
 });

@@ -53,7 +53,7 @@ Atlas
 
 
 <p class="tagline">
-A ledger of historical places of interest.
+A ledger of historical places of interest
 </p>
 
 
@@ -162,6 +162,14 @@ hidden>
   <main id="map"></main>
 
   <div id="list-view" hidden>
+    <div id="list-view-filter-row">
+      <input
+        type="text"
+        id="list-filter-input"
+        placeholder="Filter your pins by name or city&hellip;"
+        aria-label="Filter your pins by name or city"
+      />
+    </div>
     <div id="list-view-content"></div>
   </div>
 
@@ -379,6 +387,22 @@ Save
 
 
 </div>
+
+<div id="confirm-dialog" class="panel" hidden>
+
+  <div class="panel-card confirm-dialog-card">
+
+    <p id="confirm-dialog-message" class="confirm-dialog-message"></p>
+
+    <div class="panel-actions">
+      <button id="confirm-dialog-cancel" class="ghost-btn" type="button">Cancel</button>
+      <button id="confirm-dialog-ok" class="primary-btn" type="button">OK</button>
+    </div>
+
+  </div>
+
+</div>
+
 
 
 
